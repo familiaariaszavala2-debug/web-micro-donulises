@@ -4,6 +4,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Transporte - El Señor del Micro</title>
+    
+    <!-- SDKs de Firebase (Firestore y App) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Configuración de Firebase de tu proyecto
+        const firebaseConfig = {
+            apiKey: "AIzaSyAV_2QnyuXDuEfF-Dl7M8ZS6hjq9Vc4vTw",
+            authDomain: "web-micro-donulises.firebaseapp.com",
+            projectId: "web-micro-donulises",
+            storageBucket: "web-micro-donulises.firebasestorage.app",
+            messagingSenderId: "632429298415",
+            appId: "1:632429298415:web:cc823f0e084c0e1b3b511a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Hacemos globales las funciones de Firebase para usarlas en la app
+        window.db = db;
+        window.colNoticias = collection(db, "noticias");
+        window.colHorarios = collection(db, "horarios");
+        window.colNinos = collection(db, "ninos");
+        window.colPagos = collection(db, "pagos");
+
+        window.firebaseEnabled = true;
+        
+        // Cargar datos al iniciar
+        window.cargarDatosFirebase();
+    </script>
+
     <style>
         :root {
             --primary: #0284c7;
@@ -165,29 +197,44 @@
     </footer>
 </div>
 
-<script>
+<script type="module">
+    import { getDocs, addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
     let isAdmin = sessionStorage.getItem('micro_admin_auth') === 'true';
 
-    let microDb = JSON.parse(localStorage.getItem('microbus_app_db')) || {
-        noticias: [
-            { id: 1, fecha: "01/10/2026", titulo: "Bienvenida al Mes", texto: "Recordatorio de mantener listos a los niños 5 minutos antes del horario indicado." }
-        ],
-        horarios: [
-            { id: 1, turno: "Mañana (Ida)", hora: "06:30", parada: "Calle Principal #12", nino: "Lucas Hernández" }
-        ],
-        ninos: [
-            { id: 1, nombre: "Lucas Hernández", tutor: "Sra. Carmen", tel: "7000-1234", direccion: "Calle Principal #12" }
-        ],
-        pagos: [
-            { id: 1, ninoId: 1, mes: "Octubre 2026", monto: 35.00, pagado: false }
-        ]
+    window.microDb = {
+        noticias: [],
+        horarios: [],
+        ninos: [],
+        pagos: []
     };
 
-    function saveDB() {
-        localStorage.setItem('microbus_app_db', JSON.stringify(microDb));
-    }
+    window.cargarDatosFirebase = async function() {
+        try {
+            // Cargar Noticias
+            const snapNoticias = await getDocs(window.colNoticias);
+            window.microDb.noticias = snapNoticias.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
+            
+            // Cargar Horarios
+            const snapHorarios = await getDocs(window.colHorarios);
+            window.microDb.horarios = snapHorarios.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
+            window.microDb.horarios.sort((a,b) => (a.hora || "").localeCompare(b.hora || ""));
 
-    function updateAdminUI() {
+            // Cargar Niños
+            const snapNinos = await getDocs(window.colNinos);
+            window.microDb.ninos = snapNinos.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
+
+            // Cargar Pagos
+            const snapPagos = await getDocs(window.colPagos);
+            window.microDb.pagos = snapPagos.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
+
+            updateAdminUI();
+        } catch (e) {
+            console.error("Error al cargar de Firebase:", e);
+        }
+    };
+
+    window.updateAdminUI = function() {
         const adminStatus = document.getElementById('admin-status');
         const adminBtn = document.getElementById('admin-btn');
         const adminElements = document.querySelectorAll('.admin-only');
@@ -203,7 +250,6 @@
             adminBtn.style.background = "#ef4444";
             adminElements.forEach(el => el.classList.add('hidden'));
             
-            // Si el usuario estaba en la pestaña de pagos al cerrar sesión, regresarlo a noticias
             const activeTab = document.querySelector('.tab-content:not(.hidden)');
             if (activeTab && activeTab.id === 'tab-pagos') {
                 switchTab('noticias');
@@ -215,7 +261,7 @@
         renderPagos();
     }
 
-    function toggleAdminMode() {
+    window.toggleAdminMode = function() {
         if (isAdmin) {
             isAdmin = false;
             sessionStorage.removeItem('micro_admin_auth');
@@ -234,8 +280,7 @@
         }
     }
 
-    function switchTab(tabId) {
-        // Si intentan acceder a pagos sin ser admin, bloquear
+    window.switchTab = function(tabId) {
         if (tabId === 'pagos' && !isAdmin) {
             return alert("Acceso restringido. Inicia sesión como administrador.");
         }
@@ -248,49 +293,58 @@
     }
 
     // --- SECCIÓN NOTICIAS ---
-    function addNoticia() {
+    window.addNoticia = async function() {
         if (!isAdmin) return alert("Acción denegada.");
         const titulo = document.getElementById('noticia-titulo').value.trim();
         const texto = document.getElementById('noticia-texto').value.trim();
 
         if(!titulo || !texto) return alert("Ingresa el título y el mensaje");
 
-        microDb.noticias.unshift({ id: Date.now(), fecha: new Date().toLocaleDateString(), titulo, texto });
-        saveDB();
-        
-        document.getElementById('noticia-titulo').value = '';
-        document.getElementById('noticia-texto').value = '';
-        renderNoticias();
+        try {
+            await addDoc(window.colNoticias, {
+                fecha: new Date().toLocaleDateString(),
+                titulo,
+                texto
+            });
+            document.getElementById('noticia-titulo').value = '';
+            document.getElementById('noticia-texto').value = '';
+            window.cargarDatosFirebase();
+        } catch (e) {
+            alert("Error al guardar aviso");
+        }
     }
 
-    function deleteNoticia(id) {
+    window.deleteNoticia = async function(idFirebase) {
         if (!isAdmin) return alert("Acción denegada.");
         if(!confirm("¿Deseas eliminar este aviso?")) return;
-        microDb.noticias = microDb.noticias.filter(n => n.id !== id);
-        saveDB();
-        renderNoticias();
+        try {
+            await deleteDoc(doc(window.db, "noticias", idFirebase));
+            window.cargarDatosFirebase();
+        } catch (e) {
+            alert("Error al eliminar");
+        }
     }
 
-    function renderNoticias() {
+    window.renderNoticias = function() {
         const container = document.getElementById('lista-noticias');
-        if(microDb.noticias.length === 0) {
+        if(window.microDb.noticias.length === 0) {
             container.innerHTML = '<p style="color:#64748b;">No hay avisos publicados.</p>';
             return;
         }
 
-        container.innerHTML = microDb.noticias.map(n => `
+        container.innerHTML = window.microDb.noticias.map(n => `
             <div class="list-item">
                 <div style="flex:1;">
                     <strong>${n.titulo}</strong> <small style="color:#64748b;">(${n.fecha})</small>
                     <p style="margin-top:4px; color:#334155;">${n.texto}</p>
                 </div>
-                ${isAdmin ? `<button class="btn-sm btn-del" onclick="deleteNoticia(${n.id})">X</button>` : ''}
+                ${isAdmin ? `<button class="btn-sm btn-del" onclick="deleteNoticia('${n.idFirebase}')">X</button>` : ''}
             </div>
         `).join('');
     }
 
     // --- SECCIÓN HORARIOS ---
-    function addHorario() {
+    window.addHorario = async function() {
         if (!isAdmin) return alert("Acción denegada.");
         const turno = document.getElementById('horario-turno').value;
         const hora = document.getElementById('horario-hora').value;
@@ -299,41 +353,52 @@
 
         if(!hora || !parada) return alert("Completa la hora y el lugar de la parada");
 
-        microDb.horarios.push({ id: Date.now(), turno, hora, parada, nino: nino || 'Pasajero general' });
-        microDb.horarios.sort((a,b) => a.hora.localeCompare(b.hora));
-        
-        saveDB();
-        renderHorarios();
+        try {
+            await addDoc(window.colHorarios, {
+                turno,
+                hora,
+                parada,
+                nino: nino || 'Pasajero general'
+            });
+            document.getElementById('horario-parada').value = '';
+            document.getElementById('horario-nino').value = '';
+            window.cargarDatosFirebase();
+        } catch (e) {
+            alert("Error al guardar horario");
+        }
     }
 
-    function deleteHorario(id) {
+    window.deleteHorario = async function(idFirebase) {
         if (!isAdmin) return alert("Acción denegada.");
-        microDb.horarios = microDb.horarios.filter(h => h.id !== id);
-        saveDB();
-        renderHorarios();
+        try {
+            await deleteDoc(doc(window.db, "horarios", idFirebase));
+            window.cargarDatosFirebase();
+        } catch (e) {
+            alert("Error al eliminar");
+        }
     }
 
-    function renderHorarios() {
+    window.renderHorarios = function() {
         const container = document.getElementById('lista-horarios');
-        if(microDb.horarios.length === 0) {
+        if(window.microDb.horarios.length === 0) {
             container.innerHTML = '<p style="color:#64748b;">No hay horarios programados.</p>';
             return;
         }
 
-        container.innerHTML = microDb.horarios.map(h => `
+        container.innerHTML = window.microDb.horarios.map(h => `
             <div class="list-item">
                 <div>
                     <span class="badge badge-warning">${h.hora}</span> 
                     <strong>${h.parada}</strong>
                     <br><small style="color:#64748b;">${h.turno} - Niño: ${h.nino}</small>
                 </div>
-                ${isAdmin ? `<button class="btn-sm btn-del" onclick="deleteHorario(${h.id})">X</button>` : ''}
+                ${isAdmin ? `<button class="btn-sm btn-del" onclick="deleteHorario('${h.idFirebase}')">X</button>` : ''}
             </div>
         `).join('');
     }
 
     // --- SECCIÓN NIÑOS ---
-    function addNino() {
+    window.addNino = async function() {
         if (!isAdmin) return alert("Acción denegada.");
         const nombre = document.getElementById('nino-nombre').value.trim();
         const tutor = document.getElementById('nino-tutor').value.trim();
@@ -342,81 +407,101 @@
 
         if(!nombre) return alert("El nombre del niño es obligatorio");
 
-        const ninoId = Date.now();
-        microDb.ninos.push({ id: ninoId, nombre, tutor, tel, direccion });
+        try {
+            const ninoRef = await addDoc(window.colNinos, { nombre, tutor, tel, direccion });
+            
+            // Crear automáticamente su registro de pago para el mes actual
+            const mesActual = document.getElementById('pago-mes-filtro').value || "Octubre 2026";
+            await addDoc(window.colPagos, {
+                ninoId: ninoRef.id,
+                mes: mesActual,
+                monto: 35.00,
+                pagado: false
+            });
 
-        const mesActual = document.getElementById('pago-mes-filtro').value || "Octubre 2026";
-        microDb.pagos.push({ id: Date.now() + 1, ninoId: ninoId, mes: mesActual, monto: 35.00, pagado: false });
-
-        saveDB();
-        document.getElementById('nino-nombre').value = '';
-        document.getElementById('nino-tutor').value = '';
-        document.getElementById('nino-tel').value = '';
-        document.getElementById('nino-direccion').value = '';
-        
-        renderNinos();
-        renderPagos();
+            document.getElementById('nino-nombre').value = '';
+            document.getElementById('nino-tutor').value = '';
+            document.getElementById('nino-tel').value = '';
+            document.getElementById('nino-direccion').value = '';
+            
+            window.cargarDatosFirebase();
+        } catch (e) {
+            alert("Error al registrar niño");
+        }
     }
 
-    function deleteNino(id) {
+    window.deleteNino = async function(idFirebase) {
         if (!isAdmin) return alert("Acción denegada.");
         if(!confirm("¿Eliminar este niño y su historial de pagos?")) return;
-        microDb.ninos = microDb.ninos.filter(n => n.id !== id);
-        microDb.pagos = microDb.pagos.filter(p => p.ninoId !== id);
-        saveDB();
-        renderNinos();
-        renderPagos();
+        try {
+            await deleteDoc(doc(window.db, "ninos", idFirebase));
+            
+            // Eliminar sus pagos asociados
+            const pagosAsociados = window.microDb.pagos.filter(p => p.ninoId === idFirebase);
+            for (let p of pagosAsociados) {
+                await deleteDoc(doc(window.db, "pagos", p.idFirebase));
+            }
+
+            window.cargarDatosFirebase();
+        } catch (e) {
+            alert("Error al eliminar");
+        }
     }
 
-    function renderNinos() {
+    window.renderNinos = function() {
         const container = document.getElementById('lista-ninos');
-        if(microDb.ninos.length === 0) {
+        if(window.microDb.ninos.length === 0) {
             container.innerHTML = '<p style="color:#64748b;">No hay niños registrados.</p>';
             return;
         }
 
-        container.innerHTML = microDb.ninos.map(n => `
+        container.innerHTML = window.microDb.ninos.map(n => `
             <div class="list-item">
                 <div>
                     <strong>👦 ${n.nombre}</strong><br>
                     <small>Encargado: ${n.tutor || 'N/A'} | Tel: <a href="tel:${n.tel}">${n.tel || 'S/N'}</a></small><br>
                     <small style="color:#64748b;">📍 ${n.direccion || 'Sin dirección'}</small>
                 </div>
-                ${isAdmin ? `<button class="btn-sm btn-del" onclick="deleteNino(${n.id})">X</button>` : ''}
+                ${isAdmin ? `<button class="btn-sm btn-del" onclick="deleteNino('${n.idFirebase}')">X</button>` : ''}
             </div>
         `).join('');
     }
 
     // --- SECCIÓN PAGOS ---
-    function togglePago(pagoId) {
+    window.togglePago = async function(idFirebase, estadoActual) {
         if (!isAdmin) return alert("Acción denegada.");
-        const pago = microDb.pagos.find(p => p.id === pagoId);
-        if(pago) {
-            pago.pagado = !pago.pagado;
-            saveDB();
-            renderPagos();
+        try {
+            const pagoRef = doc(window.db, "pagos", idFirebase);
+            await updateDoc(pagoRef, { pagado: !estadoActual });
+            window.cargarDatosFirebase();
+        } catch (e) {
+            alert("Error al actualizar pago");
         }
     }
 
-    function renderPagos() {
+    window.renderPagos = async function() {
         const container = document.getElementById('lista-pagos');
         const mesFiltro = document.getElementById('pago-mes-filtro').value.trim();
 
-        if(microDb.ninos.length === 0) {
+        if(window.microDb.ninos.length === 0) {
             container.innerHTML = '<p style="color:#64748b;">Primero registra niños en la pestaña "Niños".</p>';
             return;
         }
 
-        container.innerHTML = microDb.ninos.map(nino => {
-            let pago = microDb.pagos.find(p => p.ninoId === nino.id && p.mes === mesFiltro);
+        let html = "";
+        for (let nino of window.microDb.ninos) {
+            let pago = window.microDb.pagos.find(p => p.ninoId === nino.idFirebase && p.mes === mesFiltro);
             
             if(!pago) {
-                pago = { id: Date.now() + Math.random(), ninoId: nino.id, mes: mesFiltro, monto: 35.00, pagado: false };
-                microDb.pagos.push(pago);
-                saveDB();
+                // Si no existe el pago para este mes, lo creamos automáticamente en la BD
+                const nuevoPago = { ninoId: nino.idFirebase, mes: mesFiltro, monto: 35.00, pagado: false };
+                const docRef = await addDoc(window.colPagos, nuevoPago);
+                nuevoPago.idFirebase = docRef.id;
+                window.microDb.pagos.push(nuevoPago);
+                pago = nuevoPago;
             }
 
-            return `
+            html += `
                 <div class="list-item">
                     <div>
                         <strong>${nino.nombre}</strong> <br>
@@ -426,15 +511,13 @@
                         <span class="badge ${pago.pagado ? 'badge-success' : 'badge-danger'}">
                             ${pago.pagado ? 'PAGADO' : 'PENDIENTE'}
                         </span>
-                        <button class="btn-sm btn-toggle" onclick="togglePago(${pago.id})">${pago.pagado ? 'Marcar Pendiente' : 'Marcar Pagado'}</button>
+                        <button class="btn-sm btn-toggle" onclick="togglePago('${pago.idFirebase}', ${pago.pagado})">${pago.pagado ? 'Marcar Pendiente' : 'Marcar Pagado'}</button>
                     </div>
                 </div>
             `;
-        }).join('');
+        }
+        container.innerHTML = html;
     }
-
-    // Inicializar interfaz según estado de sesión
-    updateAdminUI();
 </script>
 
 </body>
