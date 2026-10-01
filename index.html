@@ -79,16 +79,20 @@
         .btn-add:hover { background: var(--primary-dark); }
 
         /* Tablas y Listas */
-        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; gap: 8px; }
         .list-item:last-child { border-bottom: none; }
         .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; color: white; }
         .badge-success { background: var(--success); }
         .badge-danger { background: var(--danger); }
         .badge-warning { background: var(--warning); }
 
-        .btn-sm { padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+        .btn-sm { padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
         .btn-toggle { background: #3b82f6; color: white; }
+        .btn-save-monto { background: #10b981; color: white; }
         .btn-del { background: #ef4444; color: white; margin-left: 6px; }
+
+        .input-monto { width: 85px !important; padding: 4px 8px !important; display: inline-block; font-weight: bold; }
+        .pago-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
         .hidden { display: none !important; }
         .flex-gap { display: flex; gap: 8px; }
@@ -115,7 +119,6 @@
         <button id="btn-noticias" class="active" onclick="switchTab('noticias')">📢 Noticias</button>
         <button id="btn-horarios" onclick="switchTab('horarios')">⏰ Horarios</button>
         <button id="btn-ninos" onclick="switchTab('ninos')">👶 Niños</button>
-        <!-- Pestaña de Pagos visible solo para admin -->
         <button id="btn-pagos" class="admin-only hidden" onclick="switchTab('pagos')">💳 Pagos</button>
     </nav>
 
@@ -211,20 +214,16 @@
 
     window.cargarDatosFirebase = async function() {
         try {
-            // Cargar Noticias
             const snapNoticias = await getDocs(window.colNoticias);
             window.microDb.noticias = snapNoticias.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
             
-            // Cargar Horarios
             const snapHorarios = await getDocs(window.colHorarios);
             window.microDb.horarios = snapHorarios.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
             window.microDb.horarios.sort((a,b) => (a.hora || "").localeCompare(b.hora || ""));
 
-            // Cargar Niños
             const snapNinos = await getDocs(window.colNinos);
             window.microDb.ninos = snapNinos.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
 
-            // Cargar Pagos
             const snapPagos = await getDocs(window.colPagos);
             window.microDb.pagos = snapPagos.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
 
@@ -410,12 +409,12 @@
         try {
             const ninoRef = await addDoc(window.colNinos, { nombre, tutor, tel, direccion });
             
-            // Crear automáticamente su registro de pago para el mes actual
+            // Monto por defecto configurado a 30.00
             const mesActual = document.getElementById('pago-mes-filtro').value || "Octubre 2026";
             await addDoc(window.colPagos, {
                 ninoId: ninoRef.id,
                 mes: mesActual,
-                monto: 35.00,
+                monto: 30.00,
                 pagado: false
             });
 
@@ -436,7 +435,6 @@
         try {
             await deleteDoc(doc(window.db, "ninos", idFirebase));
             
-            // Eliminar sus pagos asociados
             const pagosAsociados = window.microDb.pagos.filter(p => p.ninoId === idFirebase);
             for (let p of pagosAsociados) {
                 await deleteDoc(doc(window.db, "pagos", p.idFirebase));
@@ -479,6 +477,25 @@
         }
     }
 
+    window.actualizarMonto = async function(idFirebase) {
+        if (!isAdmin) return alert("Acción denegada.");
+        const inputElem = document.getElementById('monto-input-' + idFirebase);
+        const nuevoMonto = parseFloat(inputElem.value);
+
+        if (isNaN(nuevoMonto) || nuevoMonto < 0) {
+            return alert("Por favor ingresa un monto válido.");
+        }
+
+        try {
+            const pagoRef = doc(window.db, "pagos", idFirebase);
+            await updateDoc(pagoRef, { monto: nuevoMonto });
+            alert("¡Monto actualizado con éxito!");
+            window.cargarDatosFirebase();
+        } catch (e) {
+            alert("Error al actualizar el monto");
+        }
+    }
+
     window.renderPagos = async function() {
         const container = document.getElementById('lista-pagos');
         const mesFiltro = document.getElementById('pago-mes-filtro').value.trim();
@@ -493,8 +510,8 @@
             let pago = window.microDb.pagos.find(p => p.ninoId === nino.idFirebase && p.mes === mesFiltro);
             
             if(!pago) {
-                // Si no existe el pago para este mes, lo creamos automáticamente en la BD
-                const nuevoPago = { ninoId: nino.idFirebase, mes: mesFiltro, monto: 35.00, pagado: false };
+                // Si no existe, se crea con el valor predeterminado de 30.00
+                const nuevoPago = { ninoId: nino.idFirebase, mes: mesFiltro, monto: 30.00, pagado: false };
                 const docRef = await addDoc(window.colPagos, nuevoPago);
                 nuevoPago.idFirebase = docRef.id;
                 window.microDb.pagos.push(nuevoPago);
@@ -504,14 +521,20 @@
             html += `
                 <div class="list-item">
                     <div>
-                        <strong>${nino.nombre}</strong> <br>
-                        <small style="color:#64748b;">Monto: $${pago.monto.toFixed(2)}</small>
-                    </div>
-                    <div>
+                        <strong>${nino.nombre}</strong><br>
                         <span class="badge ${pago.pagado ? 'badge-success' : 'badge-danger'}">
                             ${pago.pagado ? 'PAGADO' : 'PENDIENTE'}
                         </span>
-                        <button class="btn-sm btn-toggle" onclick="togglePago('${pago.idFirebase}', ${pago.pagado})">${pago.pagado ? 'Marcar Pendiente' : 'Marcar Pagado'}</button>
+                    </div>
+                    <div class="pago-actions">
+                        <div>
+                            <small style="color:#64748b; display:block;">Monto ($):</small>
+                            <input type="number" id="monto-input-${pago.idFirebase}" class="input-monto" value="${pago.monto}" step="0.50">
+                        </div>
+                        <button class="btn-sm btn-save-monto" onclick="actualizarMonto('${pago.idFirebase}')">Guardar</button>
+                        <button class="btn-sm btn-toggle" onclick="togglePago('${pago.idFirebase}', ${pago.pagado})">
+                            ${pago.pagado ? 'Marcar Pendiente' : 'Marcar Pagado'}
+                        </button>
                     </div>
                 </div>
             `;
