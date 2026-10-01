@@ -10,7 +10,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Configuración de Firebase de tu proyecto
         const firebaseConfig = {
             apiKey: "AIzaSyAV_2QnyuXDuEfF-Dl7M8ZS6hjq9Vc4vTw",
             authDomain: "web-micro-donulises.firebaseapp.com",
@@ -23,16 +22,14 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Hacemos globales las funciones de Firebase para usarlas en la app
+        // Hacemos globales las referencias de Firebase
         window.db = db;
         window.colNoticias = collection(db, "noticias");
         window.colHorarios = collection(db, "horarios");
         window.colNinos = collection(db, "ninos");
         window.colPagos = collection(db, "pagos");
 
-        window.firebaseEnabled = true;
-        
-        // Cargar datos al iniciar
+        // Cargar datos automáticamente apenas cargue el módulo
         window.cargarDatosFirebase();
     </script>
 
@@ -57,11 +54,9 @@
 
         .container { max-width: 800px; margin: 16px auto; padding: 0 12px; }
 
-        /* Barra de Estado Admin */
         .admin-bar { background: #1e293b; color: white; padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
         .admin-bar button { background: #ef4444; border: none; color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
 
-        /* Navegación por pestañas */
         nav { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; padding-bottom: 4px; }
         nav button {
             flex: 1; min-width: 110px; padding: 10px 12px; background: #e2e8f0; border: none;
@@ -72,13 +67,11 @@
         .card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .card h3 { margin-bottom: 12px; font-size: 1.1rem; border-bottom: 2px solid var(--bg); padding-bottom: 6px; color: var(--primary-dark); }
 
-        /* Formularios */
         .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
         input, select, textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; }
         .btn-add { background: var(--primary); color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         .btn-add:hover { background: var(--primary-dark); }
 
-        /* Tablas y Listas */
         .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; gap: 8px; }
         .list-item:last-child { border-bottom: none; }
         .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; color: white; }
@@ -108,13 +101,11 @@
 </header>
 
 <div class="container">
-    <!-- BARRA DE MODO ADMIN -->
     <div class="admin-bar">
         <span id="admin-status">🔒 Modo Lectura (Público)</span>
         <button id="admin-btn" onclick="toggleAdminMode()">Iniciar Modo Admin</button>
     </div>
 
-    <!-- Pestañas de Navegación -->
     <nav>
         <button id="btn-noticias" class="active" onclick="switchTab('noticias')">📢 Noticias</button>
         <button id="btn-horarios" onclick="switchTab('horarios')">⏰ Horarios</button>
@@ -122,24 +113,23 @@
         <button id="btn-pagos" class="admin-only hidden" onclick="switchTab('pagos')">💳 Pagos</button>
     </nav>
 
-    <!-- PESTAÑA: NOTICIAS Y AVISOS -->
+    <!-- NOTICIAS -->
     <div id="tab-noticias" class="tab-content">
         <div class="card admin-only hidden">
             <h3>Publicar Nuevo Aviso</h3>
             <div class="form-group">
-                <input type="text" id="noticia-titulo" placeholder="Título del aviso (ej. Cambio de horario)">
-                <textarea id="noticia-texto" rows="2" placeholder="Escribe el mensaje o aviso para los padres..."></textarea>
+                <input type="text" id="noticia-titulo" placeholder="Título del aviso">
+                <textarea id="noticia-texto" rows="2" placeholder="Escribe el mensaje..."></textarea>
                 <button class="btn-add" onclick="addNoticia()">Publicar Aviso</button>
             </div>
         </div>
-
         <div class="card">
             <h3>Avisos Recientes</h3>
-            <div id="lista-noticias"></div>
+            <div id="lista-noticias"><p style="color:#64748b;">Cargando avisos...</p></div>
         </div>
     </div>
 
-    <!-- PESTAÑA: HORARIOS Y RUTA -->
+    <!-- HORARIOS -->
     <div id="tab-horarios" class="tab-content hidden">
         <div class="card admin-only hidden">
             <h3>Agregar Punto de Recogida / Entrega</h3>
@@ -151,19 +141,18 @@
                     </select>
                     <input type="time" id="horario-hora">
                 </div>
-                <input type="text" id="horario-parada" placeholder="Lugar o Parada (ej. Colonia Escalón)">
+                <input type="text" id="horario-parada" placeholder="Lugar o Parada">
                 <input type="text" id="horario-nino" placeholder="Nombre del niño o grupo">
                 <button class="btn-add" onclick="addHorario()">Guardar Horario</button>
             </div>
         </div>
-
         <div class="card">
             <h3>Itinerario Diario</h3>
-            <div id="lista-horarios"></div>
+            <div id="lista-horarios"><p style="color:#64748b;">Cargando horarios...</p></div>
         </div>
     </div>
 
-    <!-- PESTAÑA: REGISTRO DE NIÑOS -->
+    <!-- NIÑOS -->
     <div id="tab-ninos" class="tab-content hidden">
         <div class="card admin-only hidden">
             <h3>Registrar Nuevo Pasajero</h3>
@@ -177,21 +166,20 @@
                 <button class="btn-add" onclick="addNino()">Registrar Niño</button>
             </div>
         </div>
-
         <div class="card">
             <h3>Lista de Pasajeros</h3>
-            <div id="lista-ninos"></div>
+            <div id="lista-ninos"><p style="color:#64748b;">Cargando pasajeros...</p></div>
         </div>
     </div>
 
-    <!-- PESTAÑA: CONTROL DE PAGOS (SOLO ADMIN) -->
+    <!-- PAGOS -->
     <div id="tab-pagos" class="tab-content hidden">
         <div class="card">
             <h3>Estado de Mensualidades</h3>
             <div class="flex-gap" style="margin-bottom: 12px;">
                 <input type="text" id="pago-mes-filtro" value="Octubre 2026" placeholder="Mes (ej. Octubre 2026)" onchange="renderPagos()">
             </div>
-            <div id="lista-pagos"></div>
+            <div id="lista-pagos"><p style="color:#64748b;">Cargando pagos...</p></div>
         </div>
     </div>
 
@@ -291,37 +279,28 @@
         document.getElementById('btn-' + tabId).classList.add('active');
     }
 
-    // --- SECCIÓN NOTICIAS ---
+    // --- NOTICIAS ---
     window.addNoticia = async function() {
         if (!isAdmin) return alert("Acción denegada.");
         const titulo = document.getElementById('noticia-titulo').value.trim();
         const texto = document.getElementById('noticia-texto').value.trim();
-
-        if(!titulo || !texto) return alert("Ingresa el título y el mensaje");
+        if(!titulo || !texto) return alert("Ingresa título y texto.");
 
         try {
-            await addDoc(window.colNoticias, {
-                fecha: new Date().toLocaleDateString(),
-                titulo,
-                texto
-            });
+            await addDoc(window.colNoticias, { fecha: new Date().toLocaleDateString(), titulo, texto });
             document.getElementById('noticia-titulo').value = '';
             document.getElementById('noticia-texto').value = '';
             window.cargarDatosFirebase();
-        } catch (e) {
-            alert("Error al guardar aviso");
-        }
+        } catch (e) { alert("Error al guardar."); }
     }
 
     window.deleteNoticia = async function(idFirebase) {
         if (!isAdmin) return alert("Acción denegada.");
-        if(!confirm("¿Deseas eliminar este aviso?")) return;
+        if(!confirm("¿Eliminar aviso?")) return;
         try {
             await deleteDoc(doc(window.db, "noticias", idFirebase));
             window.cargarDatosFirebase();
-        } catch (e) {
-            alert("Error al eliminar");
-        }
+        } catch (e) { alert("Error al eliminar."); }
     }
 
     window.renderNoticias = function() {
@@ -330,7 +309,6 @@
             container.innerHTML = '<p style="color:#64748b;">No hay avisos publicados.</p>';
             return;
         }
-
         container.innerHTML = window.microDb.noticias.map(n => `
             <div class="list-item">
                 <div style="flex:1;">
@@ -342,29 +320,21 @@
         `).join('');
     }
 
-    // --- SECCIÓN HORARIOS ---
+    // --- HORARIOS ---
     window.addHorario = async function() {
         if (!isAdmin) return alert("Acción denegada.");
         const turno = document.getElementById('horario-turno').value;
         const hora = document.getElementById('horario-hora').value;
         const parada = document.getElementById('horario-parada').value.trim();
         const nino = document.getElementById('horario-nino').value.trim();
-
-        if(!hora || !parada) return alert("Completa la hora y el lugar de la parada");
+        if(!hora || !parada) return alert("Faltan datos.");
 
         try {
-            await addDoc(window.colHorarios, {
-                turno,
-                hora,
-                parada,
-                nino: nino || 'Pasajero general'
-            });
+            await addDoc(window.colHorarios, { turno, hora, parada, nino: nino || 'Pasajero general' });
             document.getElementById('horario-parada').value = '';
             document.getElementById('horario-nino').value = '';
             window.cargarDatosFirebase();
-        } catch (e) {
-            alert("Error al guardar horario");
-        }
+        } catch (e) { alert("Error al guardar."); }
     }
 
     window.deleteHorario = async function(idFirebase) {
@@ -372,9 +342,7 @@
         try {
             await deleteDoc(doc(window.db, "horarios", idFirebase));
             window.cargarDatosFirebase();
-        } catch (e) {
-            alert("Error al eliminar");
-        }
+        } catch (e) { alert("Error al eliminar."); }
     }
 
     window.renderHorarios = function() {
@@ -383,7 +351,6 @@
             container.innerHTML = '<p style="color:#64748b;">No hay horarios programados.</p>';
             return;
         }
-
         container.innerHTML = window.microDb.horarios.map(h => `
             <div class="list-item">
                 <div>
@@ -396,20 +363,17 @@
         `).join('');
     }
 
-    // --- SECCIÓN NIÑOS ---
+    // --- NIÑOS ---
     window.addNino = async function() {
         if (!isAdmin) return alert("Acción denegada.");
         const nombre = document.getElementById('nino-nombre').value.trim();
         const tutor = document.getElementById('nino-tutor').value.trim();
         const tel = document.getElementById('nino-tel').value.trim();
         const direccion = document.getElementById('nino-direccion').value.trim();
-
-        if(!nombre) return alert("El nombre del niño es obligatorio");
+        if(!nombre) return alert("Ingresa el nombre del niño.");
 
         try {
             const ninoRef = await addDoc(window.colNinos, { nombre, tutor, tel, direccion });
-            
-            // Monto por defecto configurado a 30.00
             const mesActual = document.getElementById('pago-mes-filtro').value || "Octubre 2026";
             await addDoc(window.colPagos, {
                 ninoId: ninoRef.id,
@@ -424,26 +388,20 @@
             document.getElementById('nino-direccion').value = '';
             
             window.cargarDatosFirebase();
-        } catch (e) {
-            alert("Error al registrar niño");
-        }
+        } catch (e) { alert("Error al registrar."); }
     }
 
     window.deleteNino = async function(idFirebase) {
         if (!isAdmin) return alert("Acción denegada.");
-        if(!confirm("¿Eliminar este niño y su historial de pagos?")) return;
+        if(!confirm("¿Eliminar niño y sus pagos?")) return;
         try {
             await deleteDoc(doc(window.db, "ninos", idFirebase));
-            
             const pagosAsociados = window.microDb.pagos.filter(p => p.ninoId === idFirebase);
             for (let p of pagosAsociados) {
                 await deleteDoc(doc(window.db, "pagos", p.idFirebase));
             }
-
             window.cargarDatosFirebase();
-        } catch (e) {
-            alert("Error al eliminar");
-        }
+        } catch (e) { alert("Error al eliminar."); }
     }
 
     window.renderNinos = function() {
@@ -452,7 +410,6 @@
             container.innerHTML = '<p style="color:#64748b;">No hay niños registrados.</p>';
             return;
         }
-
         container.innerHTML = window.microDb.ninos.map(n => `
             <div class="list-item">
                 <div>
@@ -465,35 +422,25 @@
         `).join('');
     }
 
-    // --- SECCIÓN PAGOS ---
+    // --- PAGOS ---
     window.togglePago = async function(idFirebase, estadoActual) {
         if (!isAdmin) return alert("Acción denegada.");
         try {
-            const pagoRef = doc(window.db, "pagos", idFirebase);
-            await updateDoc(pagoRef, { pagado: !estadoActual });
+            await updateDoc(doc(window.db, "pagos", idFirebase), { pagado: !estadoActual });
             window.cargarDatosFirebase();
-        } catch (e) {
-            alert("Error al actualizar pago");
-        }
+        } catch (e) { alert("Error al actualizar pago."); }
     }
 
     window.actualizarMonto = async function(idFirebase) {
         if (!isAdmin) return alert("Acción denegada.");
-        const inputElem = document.getElementById('monto-input-' + idFirebase);
-        const nuevoMonto = parseFloat(inputElem.value);
-
-        if (isNaN(nuevoMonto) || nuevoMonto < 0) {
-            return alert("Por favor ingresa un monto válido.");
-        }
+        const nuevoMonto = parseFloat(document.getElementById('monto-input-' + idFirebase).value);
+        if (isNaN(nuevoMonto) || nuevoMonto < 0) return alert("Monto no válido.");
 
         try {
-            const pagoRef = doc(window.db, "pagos", idFirebase);
-            await updateDoc(pagoRef, { monto: nuevoMonto });
-            alert("¡Monto actualizado con éxito!");
+            await updateDoc(doc(window.db, "pagos", idFirebase), { monto: nuevoMonto });
+            alert("¡Monto actualizado!");
             window.cargarDatosFirebase();
-        } catch (e) {
-            alert("Error al actualizar el monto");
-        }
+        } catch (e) { alert("Error al actualizar monto."); }
     }
 
     window.renderPagos = async function() {
@@ -510,7 +457,6 @@
             let pago = window.microDb.pagos.find(p => p.ninoId === nino.idFirebase && p.mes === mesFiltro);
             
             if(!pago) {
-                // Si no existe, se crea con el valor predeterminado de 30.00
                 const nuevoPago = { ninoId: nino.idFirebase, mes: mesFiltro, monto: 30.00, pagado: false };
                 const docRef = await addDoc(window.colPagos, nuevoPago);
                 nuevoPago.idFirebase = docRef.id;
