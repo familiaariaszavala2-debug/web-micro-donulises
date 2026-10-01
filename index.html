@@ -8,7 +8,7 @@
     <!-- SDKs de Firebase (Firestore y App) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAV_2QnyuXDuEfF-Dl7M8ZS6hjq9Vc4vTw",
@@ -22,15 +22,39 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Hacemos globales las referencias de Firebase
         window.db = db;
         window.colNoticias = collection(db, "noticias");
         window.colHorarios = collection(db, "horarios");
         window.colNinos = collection(db, "ninos");
         window.colPagos = collection(db, "pagos");
 
-        // Cargar datos automáticamente apenas cargue el módulo
-        window.cargarDatosFirebase();
+        // Activamos escuchas en tiempo real para que cargue solo al abrir la página
+        onSnapshot(window.colNoticias, (snapshot) => {
+            window.microDb.noticias = snapshot.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
+            renderNoticias();
+        });
+
+        onSnapshot(window.colHorarios, (snapshot) => {
+            window.microDb.horarios = snapshot.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
+            window.microDb.horarios.sort((a,b) => (a.hora || "").localeCompare(b.hora || ""));
+            renderHorarios();
+        });
+
+        onSnapshot(window.colNinos, (snapshot) => {
+            window.microDb.ninos = snapshot.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
+            renderNinos();
+            renderPagos();
+        });
+
+        onSnapshot(window.colPagos, (snapshot) => {
+            window.microDb.pagos = snapshot.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
+            renderPagos();
+        });
+
+        // Asegurar estado de la interfaz al iniciar
+        window.addEventListener('DOMContentLoaded', () => {
+            updateAdminUI();
+        });
     </script>
 
     <style>
@@ -189,7 +213,7 @@
 </div>
 
 <script type="module">
-    import { getDocs, addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     let isAdmin = sessionStorage.getItem('micro_admin_auth') === 'true';
 
@@ -198,27 +222,6 @@
         horarios: [],
         ninos: [],
         pagos: []
-    };
-
-    window.cargarDatosFirebase = async function() {
-        try {
-            const snapNoticias = await getDocs(window.colNoticias);
-            window.microDb.noticias = snapNoticias.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
-            
-            const snapHorarios = await getDocs(window.colHorarios);
-            window.microDb.horarios = snapHorarios.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
-            window.microDb.horarios.sort((a,b) => (a.hora || "").localeCompare(b.hora || ""));
-
-            const snapNinos = await getDocs(window.colNinos);
-            window.microDb.ninos = snapNinos.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
-
-            const snapPagos = await getDocs(window.colPagos);
-            window.microDb.pagos = snapPagos.docs.map(d => ({ idFirebase: d.id, ...d.data() }));
-
-            updateAdminUI();
-        } catch (e) {
-            console.error("Error al cargar de Firebase:", e);
-        }
     };
 
     window.updateAdminUI = function() {
@@ -290,7 +293,6 @@
             await addDoc(window.colNoticias, { fecha: new Date().toLocaleDateString(), titulo, texto });
             document.getElementById('noticia-titulo').value = '';
             document.getElementById('noticia-texto').value = '';
-            window.cargarDatosFirebase();
         } catch (e) { alert("Error al guardar."); }
     }
 
@@ -299,12 +301,12 @@
         if(!confirm("¿Eliminar aviso?")) return;
         try {
             await deleteDoc(doc(window.db, "noticias", idFirebase));
-            window.cargarDatosFirebase();
         } catch (e) { alert("Error al eliminar."); }
     }
 
     window.renderNoticias = function() {
         const container = document.getElementById('lista-noticias');
+        if(!container) return;
         if(window.microDb.noticias.length === 0) {
             container.innerHTML = '<p style="color:#64748b;">No hay avisos publicados.</p>';
             return;
@@ -333,7 +335,6 @@
             await addDoc(window.colHorarios, { turno, hora, parada, nino: nino || 'Pasajero general' });
             document.getElementById('horario-parada').value = '';
             document.getElementById('horario-nino').value = '';
-            window.cargarDatosFirebase();
         } catch (e) { alert("Error al guardar."); }
     }
 
@@ -341,12 +342,12 @@
         if (!isAdmin) return alert("Acción denegada.");
         try {
             await deleteDoc(doc(window.db, "horarios", idFirebase));
-            window.cargarDatosFirebase();
         } catch (e) { alert("Error al eliminar."); }
     }
 
     window.renderHorarios = function() {
         const container = document.getElementById('lista-horarios');
+        if(!container) return;
         if(window.microDb.horarios.length === 0) {
             container.innerHTML = '<p style="color:#64748b;">No hay horarios programados.</p>';
             return;
@@ -374,7 +375,7 @@
 
         try {
             const ninoRef = await addDoc(window.colNinos, { nombre, tutor, tel, direccion });
-            const mesActual = document.getElementById('pago-mes-filtro').value || "Octubre 2026";
+            const mesActual = document.getElementById('pago-mes-filtro')?.value || "Octubre 2026";
             await addDoc(window.colPagos, {
                 ninoId: ninoRef.id,
                 mes: mesActual,
@@ -386,8 +387,6 @@
             document.getElementById('nino-tutor').value = '';
             document.getElementById('nino-tel').value = '';
             document.getElementById('nino-direccion').value = '';
-            
-            window.cargarDatosFirebase();
         } catch (e) { alert("Error al registrar."); }
     }
 
@@ -400,12 +399,12 @@
             for (let p of pagosAsociados) {
                 await deleteDoc(doc(window.db, "pagos", p.idFirebase));
             }
-            window.cargarDatosFirebase();
         } catch (e) { alert("Error al eliminar."); }
     }
 
     window.renderNinos = function() {
         const container = document.getElementById('lista-ninos');
+        if(!container) return;
         if(window.microDb.ninos.length === 0) {
             container.innerHTML = '<p style="color:#64748b;">No hay niños registrados.</p>';
             return;
@@ -427,25 +426,27 @@
         if (!isAdmin) return alert("Acción denegada.");
         try {
             await updateDoc(doc(window.db, "pagos", idFirebase), { pagado: !estadoActual });
-            window.cargarDatosFirebase();
         } catch (e) { alert("Error al actualizar pago."); }
     }
 
     window.actualizarMonto = async function(idFirebase) {
         if (!isAdmin) return alert("Acción denegada.");
-        const nuevoMonto = parseFloat(document.getElementById('monto-input-' + idFirebase).value);
+        const inputEl = document.getElementById('monto-input-' + idFirebase);
+        if(!inputEl) return;
+        const nuevoMonto = parseFloat(inputEl.value);
         if (isNaN(nuevoMonto) || nuevoMonto < 0) return alert("Monto no válido.");
 
         try {
             await updateDoc(doc(window.db, "pagos", idFirebase), { monto: nuevoMonto });
             alert("¡Monto actualizado!");
-            window.cargarDatosFirebase();
         } catch (e) { alert("Error al actualizar monto."); }
     }
 
     window.renderPagos = async function() {
         const container = document.getElementById('lista-pagos');
-        const mesFiltro = document.getElementById('pago-mes-filtro').value.trim();
+        const mesFiltroEl = document.getElementById('pago-mes-filtro');
+        if(!container || !mesFiltroEl) return;
+        const mesFiltro = mesFiltroEl.value.trim();
 
         if(window.microDb.ninos.length === 0) {
             container.innerHTML = '<p style="color:#64748b;">Primero registra niños en la pestaña "Niños".</p>';
